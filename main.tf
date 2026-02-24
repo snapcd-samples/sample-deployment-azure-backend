@@ -8,4 +8,6 @@ module "sample" {
   azure_backend_storage_account_name = var.azure_backend_storage_account_name
   azure_backend_storage_container_name = var.azure_backend_storage_container_name
   azure_backend_storage_path_prefix = var.azure_backend_storage_path_prefix
+  azure_backend_arm_client_id = var.azure_backend_arm_client_id
+  azure_backend_arm_client_secret_name = var.azure_backend_arm_client_secret_name
 }

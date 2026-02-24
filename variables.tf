@@ -12,3 +12,5 @@ variable "azure_backend_resource_group_name" {}
 variable "azure_backend_storage_account_name" {}
 variable "azure_backend_storage_container_name" {}
 variable "azure_backend_storage_path_prefix" {}
+variable "azure_backend_arm_client_id" { default = null }
+variable "azure_backend_arm_client_secret_name" { default = null }

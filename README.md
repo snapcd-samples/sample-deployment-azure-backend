@@ -34,6 +34,8 @@ Snap CD is an orchestration tool and does not store your state files. By default
 | `azure_backend_storage_account_name` | Azure Storage Account name | The Storage Account you created for state files |
 | `azure_backend_storage_container_name` | Blob container name within the Storage Account | The container you created for state files |
 | `azure_backend_storage_path_prefix` | Path prefix for state file keys | A prefix of your choosing (e.g., "prod", "dev") |
+| `azure_backend_arm_client_id` | (Optional) Azure SP Client ID to inject as `ARM_CLIENT_ID` env var | From your Azure App Registration |
+| `azure_backend_arm_client_secret_name` | (Optional) Name of a Stack Secret containing the Azure SP Client Secret, injected as `ARM_CLIENT_SECRET` env var | The name of the Stack Secret you created |
 
 To set the variables, create a `terraform.tfvars` file:
 
@@ -49,6 +51,10 @@ azure_backend_resource_group_name    = "your-resource-group"
 azure_backend_storage_account_name   = "your-storage-account"
 azure_backend_storage_container_name = "your-container"
 azure_backend_storage_path_prefix    = "your-prefix"
+
+# Optional: ambient Azure credentials
+# azure_backend_arm_client_id            = "your-azure-sp-client-id"
+# azure_backend_arm_client_secret_name   = "your-stack-secret-name"
 ```
 
 Alternatively, use environment variables:
@@ -65,6 +71,10 @@ export TF_VAR_azure_backend_resource_group_name="your-resource-group"
 export TF_VAR_azure_backend_storage_account_name="your-storage-account"
 export TF_VAR_azure_backend_storage_container_name="your-container"
 export TF_VAR_azure_backend_storage_path_prefix="your-prefix"
+
+# Optional: ambient Azure credentials
+# export TF_VAR_azure_backend_arm_client_id="your-azure-sp-client-id"
+# export TF_VAR_azure_backend_arm_client_secret_name="your-stack-secret-name"
 ```
 
 ## Usage
@@ -82,13 +92,25 @@ terraform plan
 terraform apply
 ```
 
+
+## Authenticating Against the Azure API
+
+The `azurerm` backend needs to authenticate against Azure to read and write state files. There are several ways to do this, and all of them are in principle supported by Snap CD — the only requirement is that the appropriate credentials are available to the Runner at the time of execution. See the [official documentation](https://developer.hashicorp.com/terraform/language/backend/azurerm) for more detail.
+
+This sample does not cover all of these, showing only two scenarios
+1. A pre-authenticated scenario, i.e. your Runner is already logged in, e.g. by already running `az login` in advance
+2. By passing `ARM_` env vars in via Snap CD resources. Note tthat while this is a legitimate approach, we **strongly** recommend setting such env vars directly on the runner instead. The best option however is to use credential-free approaches such as [Workload Identity Federation](https://developer.hashicorp.com/terraform/language/backend/azurerm#microsoft-entra-id) or [Managed Identities](https://developer.hashicorp.com/terraform/language/backend/azurerm#access-key-lookup-with-compute-attached-managed-identity) instead.
+
+
+If you want to use the second approach, you must set a secret with the value to pass into `ARM_CLIENT_SECRET` on the "samples" stack and pass its name in  `azure_backend_arm_client_secret_name`.
+
+
 ## How It Works
 
 When Snap CD runs `terraform init` for modules in this Namespace, it:
 
 1. Injects an extra file (`extra_root.tf`) containing the `backend "azurerm" {}` block.
-2.1 (Optionally) Injects ambient Azure credentials as environment variables: `ARM_CLIENT_ID` via `snapcd_namespace_input_from_literal` and `ARM_CLIENT_SECRET` via `data.snapcd_stack_input_from_secret`.
-2.2 (Optionally) Trigger a non-interactive `az login` call via a pre-init hook. (This is especially useful if your Runner is on Kubernetes with a Workload Identity attached to it)
+2. (Optionally) Injects ambient Azure credentials as environment variables: `ARM_CLIENT_ID`/`ARM_USE_AZUREAD` via `snapcd_namespace_input_from_literal` and `ARM_CLIENT_SECRET` via `data.snapcd_stack_input_from_secret`.
 3. Passes `-migrate-state` so that any existing local state is migrated to the remote backend.
 4. Passes `-backend-config` flags for each Azure storage parameter (tenant ID, subscription ID, resource group, storage account, container, and key).
 5. Uses the module name to generate a unique state file key (`<prefix>/<module_name>.tfstate`), so each module gets its own state file.
@@ -109,6 +131,4 @@ terraform init \
 
 ## Using other backend
 
-Want to use a different backend? The principals are exactly the same! You only need to do two things:
-
-1. Ensure that your Runner
+Want to use a different backend? The principals are exactly the same.
